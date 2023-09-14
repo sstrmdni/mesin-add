@@ -89,79 +89,118 @@ if (isset($_POST['tokoinput'])) {
 }
 
 if (isset($_POST['request'])) {
-    $jum = $_POST['invCount']; // Mengambil jumlah elemen inv[] yang ditambahkan
+    $inv = $_POST['inv'];
+    $sku = $_POST['sku'];
+    $status = $_POST['status'];
+    $stat = $_POST['stat'];
+    $tipe = $_POST['tipe_pesanan'];
+    $quantity = $_POST['quantity'];
+    $requester = $_POST['requester'];
+    
+    // Menghitung jumlah elemen inv yang dikirimkan
+    $jum = count($inv);
 
-    // Selanjutnya, Anda dapat melakukan iterasi sesuai dengan jumlah elemen yang ada
-    for ($i = 0; $i < $jum; $i++) {
-        // Lakukan pemrosesan untuk setiap elemen inv[] di sini
-        $inv = $_POST['inv'];
-        $sku = $_POST['sku'];
-        $status = $_POST['status'];
-        $stat = $_POST['stat'];
-        $tipe = $_POST['tipe_pesanan'];
-        $quantity = $_POST['quantity'];
-        $requester = $_POST['requester'];
+    // Array untuk menyimpan data yang akan di-insert ke database
+    $dataToInsert = array();
 
-        // Selanjutnya, Anda bisa melakukan pengolahan data sesuai kebutuhan, seperti insert ke database
+    // Selanjutnya, Anda bisa melakukan pengolahan data sesuai kebutuhan, seperti insert ke database
+    foreach ($inv as $key => $invoice) {
+        if ($invoice == '0') {
+            continue;
+        }
+        
+        $select = mysqli_query($conn, "SELECT id_toko FROM toko_id WHERE sku_toko='{$sku[$key]}'");
+        $data = mysqli_fetch_array($select);
+        $idt = $data['id_toko'];
 
-        $totalInvoiceFilled = 0; // Variabel untuk menghitung total invoice yang diisi
-        for ($i = 0; $i < $jum; $i++) {
-            if ($inv[$i] == '0') {
-                continue;
-            }
-            $totalInvoiceFilled++; // Tambahkan 1 ke total invoice yang diisi
+        if ($select) {
+            $selectlist = mysqli_query($conn, "SELECT id_komponen FROM list_komponen WHERE id_product_finish='$idt'");
+            $list = mysqli_fetch_array($selectlist);
 
-            $select = mysqli_query($conn, "SELECT id_toko FROM toko_id WHERE sku_toko='$sku[$i]'");
-            $data = mysqli_fetch_array($select);
-            $idt = $data['id_toko'];
+            $id_komp = $list['id_komponen'];
+            if ($id_komp > 1999999) {
+                $selectproductgudang = mysqli_query($conn, "SELECT SUM(quantity) AS quantity FROM gudang_id WHERE id_product='$id_komp' GROUP BY id_product");
+                $datagudang = mysqli_fetch_array($selectproductgudang);
+                $quantitytotal = $datagudang['quantity'];
 
-            if ($select) {
-                $selectlist = mysqli_query($conn, "SELECT id_komponen FROM list_komponen WHERE id_product_finish='$idt'");
-                $list = mysqli_fetch_array($selectlist);
-
-                $id_komp = $list['id_komponen'];
-                if ($id_komp > 1999999) {
-                    $selectproductgudang = mysqli_query($conn, "SELECT SUM(quantity) AS quantity FROM gudang_id WHERE id_product='$id_komp' GROUP BY id_product");
-                    $datagudang = mysqli_fetch_array($selectproductgudang);
-                    $quantitytotal = $datagudang['quantity'];
-
-                    if ($quantity[$i] > $quantitytotal) {
-                        echo '
+                if ($quantity[$key] > $quantitytotal) {
+                    echo '
                     <script>
-                        alert("Quantity yang anda minta melebihi yang ada");
+                        alert("Quantity yang anda minta melebihi yang ada untuk invoice ' . $invoice . ' dengan SKU ' . $sku[$key] . '");
                         window.location.href="?url=product";
                     </script>';
-                    } else {
-                        $insert = mysqli_query($conn, "INSERT INTO request_id(id_toko, invoice, quantity_req, requester, type_req, status_req, tipe_pesanan) VALUES('$idt','$inv[$i]','$quantity[$i]','$requester','$status','$stat','$tipe[$i]')");
-                        header('location:?url=aprove');
-                    }
-                } elseif ($id_komp < 1999999) {
-                    $selectproductgudang = mysqli_query($conn, "SELECT SUM(quantity) AS quantity FROM mateng_id WHERE id_product='$id_komp' GROUP BY id_product");
-                    $datagudang = mysqli_fetch_array($selectproductgudang);
-                    $quantitytotal = $datagudang['quantity'];
+                } else {
+                    // Menambahkan data ke dalam array untuk di-insert
+                    $dataToInsert[] = array(
+                        'id_toko' => $idt,
+                        'invoice' => $invoice,
+                        'quantity_req' => $quantity[$key],
+                        'requester' => $requester,
+                        'type_req' => $status,
+                        'status_req' => $stat,
+                        'tipe_pesanan' => $tipe[$key]
+                    );
+                }
+            } elseif ($id_komp < 1999999) {
+                $selectproductgudang = mysqli_query($conn, "SELECT SUM(quantity) AS quantity FROM mateng_id WHERE id_product='$id_komp' GROUP BY id_product");
+                $datagudang = mysqli_fetch_array($selectproductgudang);
+                $quantitytotal = $datagudang['quantity'];
 
-                    if ($quantity[$i] > $quantitytotal) {
-                        echo '
+                if ($quantity[$key] > $quantitytotal) {
+                    echo '
                     <script>
-                        alert("Quantity yang anda minta melebihi yang ada");
+                        alert("Quantity yang anda minta melebihi yang ada untuk invoice ' . $invoice . ' dengan SKU ' . $sku[$key] . '");
                         window.location.href="?url=approve";
                     </script>';
-                    } else {
-                        $insert = mysqli_query($conn, "INSERT INTO request_id(id_toko, invoice, quantity_req, requester, type_req, status_req, tipe_pesanan) VALUES('$idt','$inv[$i]','$quantity[$i]','$requester','$status','$stat','$tipe[$i]')");
-                        header('location:?url=approve');
-                    }
+                } else {
+                    // Menambahkan data ke dalam array untuk di-insert
+                    $dataToInsert[] = array(
+                        'id_toko' => $idt,
+                        'invoice' => $invoice,
+                        'quantity_req' => $quantity[$key],
+                        'requester' => $requester,
+                        'type_req' => $status,
+                        'status_req' => $stat,
+                        'tipe_pesanan' => $tipe[$key]
+                    );
                 }
-            } else {
-                echo '
+            }
+        } else {
+            echo '
             <script>
-                alert("Tidak ada Komponen Mentah di Gudang, Harap Lapor Gudang");
+                alert("Tidak ada Komponen Mentah di Gudang, Harap Lapor Gudang untuk SKU ' . $sku[$key] . '");
                 window.location.href="?url=product";
             </script>';
-            }
         }
     }
-}
 
+    // Sekarang, Anda dapat meng-insert data ke dalam database di sini
+    foreach ($dataToInsert as $data) {
+        $idt = $data['id_toko'];
+        $invoice = $data['invoice'];
+        $quantity_req = $data['quantity_req'];
+        $requester = $data['requester'];
+        $status = $data['type_req'];
+        $stat = $data['status_req'];
+        $tipe_pesanan = $data['tipe_pesanan'];
+
+        $insert = mysqli_query($conn, "INSERT INTO request_id(id_toko, invoice, quantity_req, requester, type_req, status_req, tipe_pesanan) VALUES('$idt','$invoice','$quantity_req','$requester','$status','$stat','$tipe_pesanan')");
+
+        if (!$insert) {
+            echo '
+            <script>
+                alert("Gagal menyimpan data untuk invoice ' . $invoice . '.");
+                window.location.href="?url=product";
+            </script>';
+        }
+    }
+
+    // Setelah semua data berhasil di-insert, redirect ke halaman approve
+    echo '
+    <script>
+        window.location.href="?url=approve";
+    </script>';
+}
 //Approve Refill
 if (isset($_POST['approverefill'])) {
     $quantity = $_POST['quantity'];
